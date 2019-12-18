@@ -1,5 +1,7 @@
 import createChannel from '@storybook/channel-postmessage';
-import { toId } from '@storybook/router/utils';
+import { toId } from '@storybook/csf';
+import addons from '@storybook/addons';
+import Events from '@storybook/core-events';
 
 import StoryStore from './story_store';
 import { defaultDecorateStory } from './client_api';
@@ -51,6 +53,46 @@ describe('preview.story_store', () => {
     });
   });
 
+  describe('emitting behaviour', () => {
+    it('is syncronously emits STORY_RENDER if the channel is defined', async () => {
+      const onChannelRender = jest.fn();
+      const testChannel = createChannel({ page: 'preview' });
+      testChannel.on(Events.STORY_RENDER, onChannelRender);
+
+      const onStoreRender = jest.fn();
+      const store = new StoryStore({ channel: testChannel });
+      store.on(Events.STORY_RENDER, onStoreRender);
+
+      store.setSelection({ storyId: 'storyId', viewMode: 'viewMode' }, undefined);
+      expect(onChannelRender).toHaveBeenCalled();
+      expect(onStoreRender).not.toHaveBeenCalled();
+
+      onChannelRender.mockClear();
+      await new Promise(r => setTimeout(r, 10));
+      expect(onChannelRender).not.toHaveBeenCalled();
+      expect(onStoreRender).toHaveBeenCalled();
+    });
+
+    it('is asychronously emits STORY_RENDER if the channel is not yet defined', async () => {
+      const onChannelRender = jest.fn();
+      const testChannel = createChannel({ page: 'preview' });
+      testChannel.on(Events.STORY_RENDER, onChannelRender);
+
+      const onStoreRender = jest.fn();
+      const store = new StoryStore({ channel: undefined });
+      store.on(Events.STORY_RENDER, onStoreRender);
+
+      store.setSelection({ storyId: 'storyId', viewMode: 'viewMode' }, undefined);
+      expect(onChannelRender).not.toHaveBeenCalled();
+      expect(onStoreRender).not.toHaveBeenCalled();
+
+      store.setChannel(testChannel);
+      await new Promise(r => setTimeout(r, 10));
+      expect(onChannelRender).toHaveBeenCalled();
+      expect(onStoreRender).toHaveBeenCalled();
+    });
+  });
+
   describe('dumpStoryBook', () => {
     it('should return nothing when empty', () => {
       const store = new StoryStore({ channel });
@@ -97,6 +139,7 @@ describe('preview.story_store', () => {
     });
     it('should remove the kind in both modern and legacy APIs', () => {
       const store = new StoryStore({ channel });
+      addons.setChannel(channel);
       store.addStory(...make('kind-1', 'story-1.1', () => 0));
       store.addStory(...make('kind-1', 'story-1.2', () => 0));
       store.addStory(...make('kind-2', 'story-2.1', () => 0));
@@ -117,6 +160,7 @@ describe('preview.story_store', () => {
   describe('remove', () => {
     it('should remove the kind in both modern and legacy APIs', () => {
       const store = new StoryStore({ channel });
+      addons.setChannel(channel);
       store.addStory(...make('kind-1', 'story-1.1', () => 0));
       store.addStory(...make('kind-1', 'story-1.2', () => 0));
 
